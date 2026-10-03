@@ -1,0 +1,26 @@
+name: ci
+on: [push, pull_request]
+jobs:
+  oracle-and-gates:
+    runs-on: ubuntu-24.04
+    container: swift:6.2-noble
+    steps:
+      - uses: actions/checkout@v4
+        with: { submodules: true }
+      - name: Tools
+        run: |
+          apt-get update -qq
+          apt-get install -y -qq gcc make patch python3 bison libx11-dev libxext-dev libxpm-dev \
+            xvfb x11-apps xfonts-base imagemagick >/dev/null
+      - name: Core purity
+        run: scripts/check-core-purity.sh
+      - name: Headless oracle (build + determinism smoke)
+        run: oracle/build-headless.sh && oracle/smoke-headless.sh
+      - name: Oracle identity
+        run: tools/oracle-identity.py
+      - name: Swift golden tests
+        run: swift test
+      - name: Per-function differential gates vs. the C
+        run: TWINCITY_ORACLE=1 swift test
+      - name: Session oracle (Xvfb build + determinism smoke)
+        run: oracle/build-xvfb.sh && oracle/smoke-xvfb.sh

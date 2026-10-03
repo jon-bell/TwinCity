@@ -1,0 +1,9 @@
+.build/
+.swiftpm/
+oracle/build/
+# Corpora are regenerated from committed manifests (corpus/*/MANIFEST.json); never commit sessions.
+corpus/**/*.session.json
+corpus/**/recordings/
+# Sealed corpora never live in this repository at all (see corpus/README.md).
+corpus/sealed/
+*.xwd

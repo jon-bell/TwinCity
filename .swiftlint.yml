@@ -1,0 +1,27 @@
+# Mirrors scripts/check-core-purity.sh for editors that run SwiftLint. CI runs the script.
+included: [Sources/TwinCityCore]
+custom_rules:
+  no_stdlib_randomness:
+    regex: '\.random\(|SystemRandomNumberGenerator|RandomNumberGenerator'
+    message: "All randomness goes through SimRNG; the port must match the original draw for draw."
+    severity: error
+  no_clock:
+    regex: '\bClock\b|ContinuousClock|SuspendingClock|Date\('
+    message: "No wall clock in the sim core; time is the tick counter."
+    severity: error
+  no_concurrency:
+    regex: '\basync\b|\bawait\b|\bactor\b|Task\s*[\(\{]|Dispatch'
+    message: "The sim core is single-threaded and deterministic."
+    severity: error
+  no_hashed_collections:
+    regex: '\bDictionary\b|\bSet<|\[[A-Za-z0-9_]+\s*:\s*[A-Za-z0-9_]+\]\('
+    message: "Dictionary/Set iteration order is seeded per process. Use arrays or sorted structures."
+    severity: error
+  no_unsafe:
+    regex: '\bUnsafe[A-Z]'
+    message: "Model C adjacency explicitly; don't reach for unsafe pointers to match it."
+    severity: error
+  no_imports:
+    regex: '^\s*import\s'
+    message: "TwinCityCore imports nothing."
+    severity: error

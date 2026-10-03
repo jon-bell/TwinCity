@@ -1,0 +1,4 @@
+[submodule "oracle/upstream"]
+	path = oracle/upstream
+	url = https://github.com/simhacker/micropolis.git
+	shallow = true

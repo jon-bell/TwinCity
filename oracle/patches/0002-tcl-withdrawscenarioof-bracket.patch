@@ -1,0 +1,15 @@
+Behaviour patch, PENDING RULING (ledger/0002-withdrawscenarioof-tcl.md): the original's
+WithdrawScenarioOf is missing a `[`, so every head entering the "play" state raises a Tcl
+error. Under -s N startup that error is fatal, so without this patch the session oracle
+cannot start a scenario at all. Applied provisionally; Jon to rule reproduce vs. fix.
+--- a/res/micropolis.tcl
++++ b/res/micropolis.tcl
+@@ -3161,7 +3161,7 @@
+ 
+ 
+ proc WithdrawScenarioOf {head} {
+-  set win WindowLink $head.scenario]
++  set win [WindowLink $head.scenario]
+   if {$win != {}} {
+     wm withdraw $win
+   }

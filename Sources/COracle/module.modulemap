@@ -1,0 +1,4 @@
+module COracle [system] {
+    header "oracle.h"
+    export *
+}
