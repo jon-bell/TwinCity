@@ -51,7 +51,9 @@ Every session, in order:
 
 **Never apply `jon-approved` yourself, and never remove `needs-jon`.** Agents run on Jon's
 credentials, so the label is a promise, not a lock. Self-approval is the one violation that
-defeats every other guardrail. Never push to `main` directly; branch protection requires CI.
+defeats every other guardrail. Never push to `main` directly, and never use `gh pr merge --admin` or any other bypass. Branch
+protection requires CI, but Jon's credentials can override it (verified 2026-10-06 with a canary
+PR), so the rule is the protection.
 
 ## What "done" means for a port
 
