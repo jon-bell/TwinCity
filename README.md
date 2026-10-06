@@ -16,7 +16,7 @@ by differential testing against the original program running beside it. Two citi
   or reads out of bounds. Each site goes through an agentic loop (detect → perturb → rule →
   record) under one fixed policy: reproduce what the 1990 memory layout did. See `ledger/`.
 
-Design: [`docs/DESIGN.md`](docs/DESIGN.md). Agent rules: [`CLAUDE.md`](CLAUDE.md).
+Design: [`docs/DESIGN.md`](docs/DESIGN.md). Plan and exit criteria: [`docs/PLAN.md`](docs/PLAN.md). Agent rules: [`CLAUDE.md`](CLAUDE.md).
 
 ## Quick start
 
