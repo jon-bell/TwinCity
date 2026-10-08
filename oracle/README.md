@@ -9,6 +9,24 @@ apply `patches/` in order. **Every patch is part of the recorder identity**
 |---|---|---|
 | headless | `build-headless.sh` → `build/headless/{liboracle.a,twincity-headless}` | per-function differential gates (Swift links `liboracle.a` in-process); fast smoke runs. Runs `SimFrame`+`MoveObjects` only: no views, speed 3. **Not** a session oracle. |
 | xvfb | `build-xvfb.sh` → `build/xvfb/tree/src/sim/sim` | the session oracle: full app, real Tk, views open, virtual clock |
+| reference | `build-reference.sh` → `build/reference/{tree/src/sim/sim,twincity-reference}` | ledger rulings: the full app at `-m32`, linked by the original makefile; `twincity-reference` is that link entered through the headless driver (`twincity-reference RES S2 3000`) |
+
+**Layout is a property of the whole link.** GNU ld places common symbols in link-hash-table
+order, so adding *any* symbol to a link (even an unrelated function) can move which object an
+out-of-bounds access lands in (ledger/0001). `tools/layout-neighbour.py BIN SYM INDEX SIZE`
+reports where `&SYM[INDEX]` lands. `build-reference.sh` fails if its driver link and the app link
+disagree at the ledger sites (`REFERENCE_FAULT=driver-symbols` shows it going red). Perturbation
+knobs for ledger tables: `WIDTH=64`, `OPT=-O0`, `EXTRA_CFLAGS=...`.
+
+**32-bit binaries on a kernel without IA32 emulation** (e.g. a Kata guest: "Exec format error"):
+install `gcc-multilib libx11-dev:i386 libxext-dev:i386 libxpm-dev:i386 qemu-user` (after
+`dpkg --add-architecture i386`), then register qemu-i386 with binfmt_misc (until reboot):
+
+```sh
+sudo mount -t binfmt_misc binfmt_misc /proc/sys/fs/binfmt_misc 2>/dev/null
+echo ':qemu-i386:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\x00\x03\x00:\xff\xff\xff\xff\xff\xfe\xfe\x00\xff\xff\xff\xff\xff\xff\xff\xff\xfe\xff\xff\xff:/usr/bin/qemu-i386:' \
+  | sudo tee /proc/sys/fs/binfmt_misc/register
+```
 
 Spec flags (`common.sh`): `-std=gnu89 -fcommon -fno-strict-aliasing -fwrapv -ffp-contract=off -DOSF1`.
 `-DOSF1` makes `QUAD` 32-bit (the spec word size); `-fcommon` is the 1990 linker model and
@@ -20,6 +38,8 @@ Harness (`harness/`), all link-time `--wrap`, with no source edits:
 - `probe_frame.c`: per-tick hook at `UpdateFlush`; xwd captures (`TWINCITY_CAPS`, `TWINCITY_STOP`, `TWINCITY_OUT`).
 - `ui_stubs.c`, `xstubs.c`, `headless_main.c`: the headless build's UI stand-ins and driver.
   `InitGraphMax` is copied verbatim, because it mutates sim state.
+- `reference_main.c`: `__wrap_main` for the reference build; an empty Tcl interpreter and
+  `initGraphs`, then `headless_main.c` unchanged.
 - `tclxgdat-stub.c`: used only when no yacc/bison is available (recorded in the identity env).
 
 `stubinc/` holds ABI-compatible XShm/shape/xpm headers for hosts without libxext-dev/libxpm-dev.
@@ -27,5 +47,4 @@ Harness (`harness/`), all link-time `--wrap`, with no source edits:
 Known gaps, which are phase-1 work:
 - range logging for `Rand` (calls from inside `s_sim.c` aren't interceptable by `--wrap`);
 - logical-frame dumps (currently screenshots only);
-- full-state snapshots;
-- the 32-bit reference-layout build (`-m32`).
+- full-state snapshots.
