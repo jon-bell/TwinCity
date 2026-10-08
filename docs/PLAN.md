@@ -10,12 +10,14 @@ Agents may tick boxes, add tasks under a phase, and update **Now**. Changing a p
 
 Phase 0 is nearly done; Phase 1 can start in parallel. Pick from these, top first:
 
-1. `P0.4` reference-layout build. It unblocks the `VoteProblems` ruling (ledger/0001).
-2. `P1.1` frame-stepped scheduler for the Xvfb oracle.
-3. `P0.5` UB detector build.
+1. `P1.1` frame-stepped scheduler for the Xvfb oracle.
+2. `P0.5` UB detector build.
+3. `P0.6` optimisation invariance (lead: `-m32` `-O1` moves `RValve` 1890 → 1889; ledger/0001 table).
 4. `P1.2` logical-frame dumper.
 
-Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling.
+Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling; the 1990-layout
+stand-in for ledger/0001 (#6). Until #6 is ruled, the headless and xvfb oracles disagree on
+every session that runs an evaluation, and adding symbols to an oracle link can move it.
 
 ---
 
@@ -27,7 +29,7 @@ from Swift.
 - [x] P0.1 Headless build + determinism smoke (`oracle/build-headless.sh`, `smoke-headless.sh`)
 - [x] P0.2 Session oracle under Xvfb + determinism smoke (`build-xvfb.sh`, `smoke-xvfb.sh`)
 - [x] P0.3 First in-process gate: RNG, with a rejection-boundary test that kills a planted mutant
-- [ ] P0.4 **Reference-layout build** `oracle/build-reference.sh`. `-m32 -fcommon`, the original
+- [x] P0.4 **Reference-layout build** `oracle/build-reference.sh`. `-m32 -fcommon`, the original
   makefile's link order, spec flags otherwise. CI job installs `gcc-multilib`. Output: the
   VoteProblems neighbours and score under the reference layout, written into ledger/0001's
   perturbation table.
