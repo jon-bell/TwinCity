@@ -33,9 +33,16 @@ Spec flags (`common.sh`): `-std=gnu89 -fcommon -fno-strict-aliasing -fwrapv -ffp
 used to change behaviour at ledger/0001, which `patches/0003` now pins.
 
 Harness (`harness/`), all link-time `--wrap`, with no source edits:
-- `wrap_clock.c`: virtual clock for `gettimeofday` (frozen by default; `TWINCITY_VCLOCK_STEP_US` to advance per call).
+- `wrap_clock.c`: virtual clock for `gettimeofday` (frozen by default; `TWINCITY_VCLOCK_STEP_US` to advance per call,
+  except when `sched.c` owns the clock).
 - `wrap_rand.c`: every `sim_rand` draw, with caller PCs, to `$TWINCITY_RANDLOG`.
-- `probe_frame.c`: per-tick hook at `UpdateFlush`; xwd captures (`TWINCITY_CAPS`, `TWINCITY_STOP`, `TWINCITY_OUT`).
+- `probe_frame.c`: per-tick hook at `UpdateFlush`; xwd captures (`TWINCITY_CAPS`, `TWINCITY_STOP`, `TWINCITY_OUT`),
+  a per-tick trace (`TWINCITY_TRACE`), and `TWINCITY_WALL_DELAY_US` to imitate a slower host.
+- `sched.c` (xvfb build): the frame-stepped scheduler. Tk's timers move into a virtual queue that
+  copies Tk 2.3's ordering quirks, and the virtual clock advances only when the app would block,
+  after an `XSync` and a full drain of X and idle events. Recordings are therefore independent of
+  host speed; `smoke-xvfb.sh` runs at two speeds to prove it. `TWINCITY_SCHED=off` restores the
+  old per-call clock; `TWINCITY_SCHED_FAULT=wallclock` is the planted fault.
 - `ui_stubs.c`, `xstubs.c`, `headless_main.c`: the headless build's UI stand-ins and driver.
   `InitGraphMax` is copied verbatim, because it mutates sim state.
 - `reference_main.c`: `__wrap_main` for the reference build; an empty Tcl interpreter and

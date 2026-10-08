@@ -16,10 +16,10 @@ P="${OPT:--O1} -g $SPEC_CFLAGS"
 (cd "$S/tk" && make libtk.a CFLAGS="$P -I. -I$X -I/usr/include/X11 -I../tcl -DTK_VERSION=\\\"2.3\\\" -DUSE_XPM3")
 (cd "$S/tclx" && make OPTIMIZE_FLAG="$P -DTCL_IEEE_FP_MATH -DDOMAIN=1 -DSING=2 -DOVERFLOW=3 -DUNDERFLOW=4 -DTLOSS=5 -DPLOSS=6 -I$X" \
    XPM_LIBS="-L$L -lXpm" TCL_TK_LIBS="-lX11 -lm -L$L -lXpm")
-for f in wrap_clock wrap_rand probe_frame; do
+for f in wrap_clock wrap_rand probe_frame sched; do
   gcc -c $P -I$X -I"$S/sim/headers" -I"$S/tcl" -I"$S/tk" -I"$S/tclx/src" -I/usr/include/X11 "$ORACLE/harness/$f.c" -o "$B/$f.o"
 done
 (cd "$S/sim" && make sim CFLAGS="$P -DNO_AIRCRASH" \
    INCLUDES="-Iheaders -I$X -I/usr/include/X11 -I../tcl -I../tclx/src -I../tk" \
-   LIBS="$B/wrap_clock.o $B/wrap_rand.o $B/probe_frame.o ../tclx/libtk.a ../tclx/libtcl.a -lm -L$L -lX11 -lXext -lXpm -Wl,--wrap=gettimeofday -Wl,--wrap=sim_rand -Wl,--wrap=UpdateFlush")
+   LIBS="$B/wrap_clock.o $B/wrap_rand.o $B/probe_frame.o $B/sched.o ../tclx/libtk.a ../tclx/libtcl.a -lm -L$L -lX11 -lXext -lXpm -Wl,--wrap=gettimeofday -Wl,--wrap=sim_rand -Wl,--wrap=UpdateFlush -Wl,--wrap=Tk_CreateTimerHandler,--wrap=Tk_CreateMicroTimerHandler,--wrap=Tk_DeleteTimerHandler,--wrap=Tk_DoOneEvent,--wrap=Tk_MainLoop,--wrap=Tk_Sleep")
 echo "built $S/sim/sim  (run: see oracle/README.md)"
