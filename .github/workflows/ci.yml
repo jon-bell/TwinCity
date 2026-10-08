@@ -40,3 +40,8 @@ jobs:
         run: TWINCITY_ORACLE=1 swift test
       - name: Session oracle (Xvfb build + determinism smoke)
         run: oracle/build-xvfb.sh && oracle/smoke-xvfb.sh
+      - name: Reference-layout oracle (-m32 full app, native i386; ledger/0001)
+        run: |
+          dpkg --add-architecture i386 && apt-get update -qq
+          apt-get install -y -qq gcc-multilib libx11-dev:i386 libxext-dev:i386 libxpm-dev:i386 >/dev/null
+          oracle/build-reference.sh && oracle/smoke-reference.sh
