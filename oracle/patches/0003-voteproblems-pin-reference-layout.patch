@@ -1,0 +1,20 @@
+Behaviour patch, RULED (ledger/0001-voteproblems-oob.md, Jon on #6): VoteProblems indexes
+ProblemTable/ProblemVotes with x == PROBNUM. What that touches depends on how the linker lays
+out commons, so the headless and xvfb oracles disagreed. Pin the reference-layout values
+(build-reference.sh: -m32, original makefile link) so every build behaves the same.
+--- a/src/sim/s_eval.c
++++ b/src/sim/s_eval.c
+@@ -209,8 +209,11 @@
+   z = 0;
+   count = 0;
+   while ((z < 100) && (count < 600)) {
+-    if (Rand(300) < ProblemTable[x]) {
+-      ProblemVotes[x]++;
++    /* TwinCity ledger/0001 (ruled): x reaches PROBNUM, one past both arrays. Pinned to the
++       -m32 original-makefile link: ProblemTable[10] is the low half of CityPop and
++       ProblemVotes[10] is EvalValid. The Rand(300) draw is unconditional, as before. */
++    if (Rand(300) < (x < PROBNUM ? ProblemTable[x] : (short)CityPop)) {
++      if (x < PROBNUM) ProblemVotes[x]++; else EvalValid++;
+       z++;
+     }
+     x++;

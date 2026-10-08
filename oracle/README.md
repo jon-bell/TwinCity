@@ -29,8 +29,8 @@ echo ':qemu-i386:M::\x7fELF\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\x00\x00\x02\
 ```
 
 Spec flags (`common.sh`): `-std=gnu89 -fcommon -fno-strict-aliasing -fwrapv -ffp-contract=off -DOSF1`.
-`-DOSF1` makes `QUAD` 32-bit (the spec word size); `-fcommon` is the 1990 linker model and
-**changes behaviour** (ledger/0001).
+`-DOSF1` makes `QUAD` 32-bit (the spec word size); `-fcommon` is the 1990 linker model. It
+used to change behaviour at ledger/0001, which `patches/0003` now pins.
 
 Harness (`harness/`), all link-time `--wrap`, with no source edits:
 - `wrap_clock.c`: virtual clock for `gettimeofday` (frozen by default; `TWINCITY_VCLOCK_STEP_US` to advance per call).

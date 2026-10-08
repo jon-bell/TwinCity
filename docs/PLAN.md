@@ -15,9 +15,9 @@ Phase 0 is nearly done; Phase 1 can start in parallel. Pick from these, top firs
 3. `P0.6` optimisation invariance (lead: `-m32` `-O1` moves `RValve` 1890 → 1889; ledger/0001 table).
 4. `P1.2` logical-frame dumper.
 
-Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling; the 1990-layout
-stand-in for ledger/0001 (#6). Until #6 is ruled, the headless and xvfb oracles disagree on
-every session that runs an evaluation, and adding symbols to an oracle link can move it.
+Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling. ledger/0001 is
+ruled and pinned by `patches/0003`; other layout-dependent sites (P0.5 will find them) can still
+make the oracles disagree, and adding symbols to an oracle link can still move those.
 
 ---
 
