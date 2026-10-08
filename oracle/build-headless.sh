@@ -6,13 +6,15 @@
 . "$(dirname "$0")/common.sh"
 B="$ORACLE/build/headless"; prepare_tree "$B/tree"
 S="$B/tree/src"
+# EXTRA_CFLAGS/EXTRA_LDFLAGS (after the spec flags, so they can override them): instrumentation
+# and perturbation builds only, e.g. EXTRA_CFLAGS="-fno-common -fsanitize=address".
 # -fPIC: the Swift test bundle is a shared object. Verified not to move the smoke baseline.
-CF="${OPT:--O0} -g -fPIC $SPEC_CFLAGS -I$ORACLE/stubinc -I$S/sim/headers -I$S/tcl -I$S/tk -I$S/tclx/src"
+CF="${OPT:--O0} -g -fPIC $SPEC_CFLAGS ${EXTRA_CFLAGS:-} -I$ORACLE/stubinc -I$S/sim/headers -I$S/tcl -I$S/tk -I$S/tclx/src"
 SIM="s_alloc s_disast s_eval s_fileio s_gen s_init s_msg s_power s_scan s_sim s_traf s_zone
      rand random w_sprite w_tool w_budget w_util w_stubs w_eval w_update w_con w_resrc"
 mkdir -p "$B/obj"
 for f in $SIM; do gcc -c $CF "$S/sim/$f.c" -o "$B/obj/$f.o"; done
 for f in headless_main ui_stubs xstubs wrap_clock wrap_rand; do gcc -c $CF "$ORACLE/harness/$f.c" -o "$B/obj/$f.o"; done
 ar rcs "$B/liboracle.a" $(for f in $SIM ui_stubs xstubs wrap_clock wrap_rand; do echo "$B/obj/$f.o"; done)
-gcc "$B/obj/headless_main.o" "$B/liboracle.a" -lm -Wl,--wrap=gettimeofday -Wl,--wrap=sim_rand -o "$B/twincity-headless"
+gcc ${EXTRA_LDFLAGS:-} "$B/obj/headless_main.o" "$B/liboracle.a" -lm -Wl,--wrap=gettimeofday -Wl,--wrap=sim_rand -o "$B/twincity-headless"
 echo "built $B/twincity-headless"
