@@ -12,15 +12,20 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Guarded-path checker self-test
+      - name: Guarded-path checker self-test (this PR's copy)
         run: scripts/check-guarded-paths.py --self-test
-      - name: Guarded paths (CLAUDE.md)
+      # The verdict comes from the BASE branch's checker, so a PR cannot loosen the rule that
+      # judges it. (ci.yml itself still comes from the PR head; see CLAUDE.md, Guarded paths.)
+      - name: Guarded paths (CLAUDE.md), judged by the base branch's checker
         env:
+          BASE: ${{ github.base_ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
           PR_BODY: ${{ github.event.pull_request.body }}
           GH_TOKEN: ${{ github.token }}
           GH_REPO: ${{ github.repository }}
-        run: scripts/check-guarded-paths.py origin/${{ github.base_ref }} HEAD
+        run: |
+          git show "origin/$BASE:scripts/check-guarded-paths.py" > "$RUNNER_TEMP/check-guarded-paths.py"
+          python3 "$RUNNER_TEMP/check-guarded-paths.py" "origin/$BASE" HEAD
   oracle-and-gates:
     runs-on: ubuntu-24.04
     container: swift:6.2-noble

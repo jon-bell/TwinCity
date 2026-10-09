@@ -3,11 +3,13 @@
 
   scripts/check-guarded-paths.py <base-ref> [<head-ref>]
       $PR_LABELS  the PR's labels, comma-separated
-      $PR_BODY    the PR's description; each `Implements #N` names an issue it carries out
+      $PR_BODY    the PR's description
 
 Exit 0 when the diff is allowed, 1 (with reasons) when it needs `jon-approved`.
-An issue counts as decided only if it carries `jon-ruled` (looked up with `gh`; any lookup
-failure counts as not ruled). `--self-test` builds scratch repos covering each rule.
+A PR carries out a decision when its body has a line that is exactly `Implements #N` (outside
+HTML comments and code blocks) and also says `Closes #N`, and #N is an *open issue* (not a PR)
+labelled `jon-ruled`. Merging closes #N, so each ruling unlocks one PR. The lookup uses `gh`;
+any failure counts as not ruled. `--self-test` builds scratch repos covering each rule.
 """
 import os, re, subprocess, sys, tempfile
 
@@ -23,6 +25,16 @@ def git(*a, cwd=None):
 def show(ref, path, cwd):
     try: return git("show", f"{ref}:{path}", cwd=cwd)
     except subprocess.CalledProcessError: return ""
+
+def diff_status(base, head, cwd):
+    """[(status, path)] with raw paths (-z: no quoting, so non-ASCII or quoted names still match)."""
+    f = git("diff", "-z", "--no-renames", "--name-status", f"{base}...{head}", cwd=cwd).split("\0")
+    if f and f[-1] == "": f.pop()
+    if len(f) % 2: raise SystemExit("guarded-paths: unparseable diff (odd field count): FAIL")
+    out = list(zip(f[0::2], f[1::2]))
+    bad = [x for x in out if x[0] not in ("A", "M", "D", "T") or not x[1]]
+    if bad: raise SystemExit(f"guarded-paths: unparseable diff entries {bad!r}: FAIL")
+    return out
 
 def plan_guarded(text):
     """The parts of docs/PLAN.md agents may not change: every **Exit:** paragraph and the Guardrails section."""
@@ -41,63 +53,96 @@ def ruled_ledger(changed, head, cwd):
                 return True
     return False
 
-def gh_jon_ruled(n):
+def gh_issue(n):
+    """{'state','is_pr','labels'} for #n, or None if the lookup fails."""
     try:
-        out = subprocess.run(["gh", "issue", "view", str(n), "--json", "labels", "-q", ".labels[].name"],
-                             capture_output=True, text=True, check=True, timeout=60).stdout
+        out = subprocess.run(["gh", "api", f"repos/{{owner}}/{{repo}}/issues/{n}", "--jq",
+                              '[.state, (has("pull_request")|tostring), ([.labels[].name]|join(","))]|join(" ")'],
+                             capture_output=True, text=True, check=True, timeout=60).stdout.split(" ")
     except Exception:
-        return False
-    return "jon-ruled" in out.split()
+        return None
+    return {"state": out[0].strip(), "is_pr": out[1].strip() == "true", "labels": out[2].strip().split(",") if len(out) > 2 else []}
 
-def implements_ruled(body, is_ruled):
-    """Issues the PR says it implements that Jon has ruled on (label `jon-ruled`)."""
-    return [n for n in re.findall(r"\bImplements #(\d+)\b", body or "", flags=re.I) if is_ruled(n)]
+def implements_ruled(body, lookup):
+    """Open, jon-ruled issues the PR carries out (and closes)."""
+    b = re.sub(r"<!--.*?-->", "", body or "", flags=re.S)
+    b = re.sub(r"^(```|~~~).*?^\1", "", b, flags=re.S | re.M)
+    out = []
+    for n in re.findall(r"^[ \t]*Implements #(\d+)[ \t]*\.?[ \t]*$", b, flags=re.M):
+        if not re.search(rf"\bCloses #{n}\b", b): continue
+        i = lookup(n)
+        if i and i["state"] == "open" and not i["is_pr"] and "jon-ruled" in i["labels"]: out.append(n)
+    return out
 
-def verdict(base, head, labels, cwd=None, body="", is_ruled=gh_jon_ruled):
+def verdict(base, head, labels, cwd=None, body="", lookup=gh_issue):
     if "jon-approved" in labels: return []
-    status = [l.split("\t") for l in git("diff", "--no-renames", "--name-status", f"{base}...{head}", cwd=cwd).splitlines() if l]
+    status = diff_status(base, head, cwd)
     changed = [p for _, p in status]
     why = [f"{p}: guarded (needs jon-approved)" for p in changed if any(re.search(r, p) for r in ALWAYS)]
     if "docs/PLAN.md" in changed and plan_guarded(show(base, "docs/PLAN.md", cwd)) != plan_guarded(show(head, "docs/PLAN.md", cwd)):
         why.append("docs/PLAN.md: Exit criteria or Guardrails changed (needs jon-approved)")
-    # Baseline values live in oracle/baselines/, never in the smoke scripts.
+    # Convention: expected values live in oracle/baselines/, not in smoke scripts (new ones included).
     for p in changed:
-        if re.search(SMOKE, p) and re.search(r"^\s*EXPECT\w*=", show(head, p, cwd), flags=re.M):
+        if re.search(SMOKE, p) and re.search(r"^\s*(export\s+)?EXPECT\w*=", show(head, p, cwd), flags=re.M):
             why.append(f"{p}: baseline value in a smoke script (move it to oracle/baselines/)")
-    # Ground truth: patches, and changes to existing baselines (adding a new baseline is allowed:
-    # the PR's own CI run has to reproduce it).
-    ruled = [p for s, p in status if re.search(PATCHES, p) or (re.search(BASELINES, p) and s != "A")]
-    if ruled and not ruled_ledger(changed, head, cwd) and not implements_ruled(body, is_ruled):
-        why += [f"{p}: needs a ruled, non-escalated ledger entry, or `Implements #N` for a jon-ruled issue "
+    # Ground truth: patches, and changing or deleting an existing baseline or smoke script (a smoke
+    # script decides what its baseline means). Adding a new baseline or smoke script is allowed:
+    # the old ones still run, and the PR's own CI has to reproduce the new value.
+    ruled = [p for s, p in status
+             if re.search(PATCHES, p) or ((re.search(BASELINES, p) or re.search(SMOKE, p)) and s != "A")]
+    if ruled and not ruled_ledger(changed, head, cwd) and not implements_ruled(body, lookup):
+        why += [f"{p}: needs a ruled, non-escalated ledger entry, or `Implements #N` for an open jon-ruled issue "
                 f"(or jon-approved)" for p in ruled]
     return why
 
 def self_test():
-    ruled_issues = {"7"}
-    is_ruled = lambda n: n in ruled_issues
+    issues = {"7": {"state": "open", "is_pr": False, "labels": ["jon-ruled"]},
+              "8": {"state": "open", "is_pr": False, "labels": ["needs-jon"]},
+              "5": {"state": "closed", "is_pr": False, "labels": ["jon-ruled"]},
+              "9": {"state": "open", "is_pr": True, "labels": ["jon-ruled"]}}
+    lookup = issues.get
     led = lambda r, e: {"ledger/0009-x.md": f"- **ruling:** {r}\n- **escalated:** {e}\n"}
+    impl = lambda n: f"Carries out the ruling.\n\nImplements #{n}\nCloses #{n}\n"
+    B = "oracle/baselines/headless.txt"
     cases = [  # (files to write on the branch (None deletes), PR body, labels, expect_ok)
         ({"Sources/TwinCityCore/X.swift": "x"}, "", [], True),
         ({"CLAUDE.md": "changed"}, "", [], False),
         ({"CLAUDE.md": "changed"}, "", ["jon-approved"], True),
-        ({"CLAUDE.md": "changed"}, "Implements #7", [], False),            # a ruling never unlocks ALWAYS paths
-        ({".github/workflows/ci.yml": "x"}, "Implements #7", [], False),
+        ({"CLAUDE.md": "changed"}, impl(7), [], False),                     # a ruling never unlocks ALWAYS paths
+        ({".github/workflows/ci.yml": "x"}, impl(7), [], False),
         ({"scripts/check-guarded-paths.py": "x"}, "", [], False),
         ({"scripts/ci-extra.sh": "echo more checks"}, "", [], True),       # the agent-owned CI extension point
-        ({"oracle/smoke-headless.sh": "cmp $(cat baselines/headless.txt) && stricter"}, "", [], True),
-        ({"oracle/smoke-headless.sh": "EXPECT=2"}, "", [], False),          # value smuggled into a script
+        # smoke scripts: new ones allowed, existing ones decide what a baseline means (adversary B1)
+        ({"oracle/smoke-new.sh": "cmp $(cat baselines/new.txt)", "oracle/baselines/new.txt": "v"}, "", [], True),
+        ({"oracle/smoke-headless.sh": "stricter, same baseline"}, "", [], False),
+        ({"oracle/smoke-headless.sh": "cmp $(cat baselines/headless-v2.txt)", "oracle/baselines/headless-v2.txt": "2"}, "", [], False),  # e1
+        ({"oracle/smoke-headless.sh": 'want="map=... score=322"'}, "", [], False),                                                 # e2
+        ({"oracle/smoke-headless.sh": "want=$a; [ $a = $want ]"}, "", [], False),                                                  # e4
+        ({"oracle/smoke-new.sh": "export EXPECT=2"}, "", [], False),                                                               # e3
         ({"oracle/smoke-new.sh": "  EXPECT_LAYOUT=x"}, "", [], False),
+        ({"oracle/smoke-headless.sh": "stricter"}, impl(7), [], True),
+        ({"oracle/smoke-headless.sh": None}, "", [], False),
         ({"oracle/baselines/new.txt": "v"}, "", [], True),                  # new baseline: CI reproduces it
-        ({"oracle/baselines/headless.txt": "2"}, "", [], False),            # moving existing ground truth
-        ({"oracle/baselines/headless.txt": None}, "", [], False),           # deleting it
-        ({"oracle/baselines/headless.txt": "2", **led("`pending`", "no")}, "", [], False),
-        ({"oracle/baselines/headless.txt": "2", **led("reproduce: 0", "yes")}, "", [], False),
-        ({"oracle/baselines/headless.txt": "2", **led("reproduce: 0", "no")}, "", [], True),
-        ({"oracle/baselines/headless.txt": "2", **led("reproduce: 0", "yes")}, "Implements #7", [], True),
-        ({"oracle/baselines/headless.txt": "2"}, "Implements #8", [], False),  # #8 not jon-ruled
-        ({"oracle/baselines/headless.txt": "2"}, "Closes #7", [], False),      # only `Implements` counts
+        ({B: "2"}, "", [], False),                                          # moving existing ground truth
+        ({B: None}, "", [], False),                                         # deleting it
+        ({B: "2", **led("`pending`", "no")}, "", [], False),
+        ({B: "2", **led("reproduce: 0", "yes")}, "", [], False),
+        ({B: "2", **led("reproduce: 0", "no")}, "", [], True),
+        ({B: "2", **led("reproduce: 0", "yes")}, impl(7), [], True),
+        ({B: "2"}, impl(8), [], False),                                     # not jon-ruled
+        ({B: "2"}, impl(5), [], False),                                     # ruled but closed: key already used (S3)
+        ({B: "2"}, impl(9), [], False),                                     # a PR, not an issue (N6)
+        ({B: "2"}, "Implements #7\n", [], False),                           # must also close it
+        ({B: "2"}, "Closes #7", [], False),                                 # must say Implements
+        ({B: "2"}, "<!--\nImplements #7\nCloses #7\n-->", [], False),     # hidden in a comment (S3)
+        ({B: "2"}, "```\nImplements #7\n```\nCloses #7", [], False),      # inside a code block
+        ({B: "2"}, "Does not implement it (not Implements #7). Closes #7", [], False),  # not a line of its own
         ({"oracle/patches/0009-x.patch": "p"}, "", [], False),
-        ({"oracle/patches/0009-x.patch": "p"}, "Fixes it.\n\nImplements #7.", [], True),
+        ({"oracle/patches/0009-x.patch": "p"}, impl(7), [], True),
+        # paths git would quote (adversary B2)
+        ({"oracle/patches/0004-caf\u00e9.patch": "p"}, "", [], False),
+        ({'oracle/patches/0004-"q".patch': "p"}, "", [], False),
+        ({".github/workflows/\u00e9.yml": "x"}, "", [], False),
         ({"docs/PLAN.md": "## Now\nnew\n\n**Exit:** a\n\n## Guardrails\ng\n"}, "", [], True),
         ({"docs/PLAN.md": "## Now\nold\n\n**Exit:** b\n\n## Guardrails\ng\n"}, "", [], False),
         ({"docs/PLAN.md": "## Now\nold\n\n**Exit:** a\n\n## Guardrails\nweaker\n"}, "", [], False),
@@ -112,13 +157,12 @@ def self_test():
                 os.makedirs(os.path.dirname(f) or d, exist_ok=True); open(f, "w").write(t)
             git("init", "-q", "-b", "main", cwd=d)
             for p, t in {"CLAUDE.md": "c", "oracle/smoke-headless.sh": "cmp $(cat baselines/headless.txt)",
-                         "oracle/baselines/headless.txt": "1",
-                         "docs/PLAN.md": "## Now\nold\n\n**Exit:** a\n\n## Guardrails\ng\n"}.items(): w(p, t)
+                         B: "1", "docs/PLAN.md": "## Now\nold\n\n**Exit:** a\n\n## Guardrails\ng\n"}.items(): w(p, t)
             git("add", "-A", cwd=d); git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "base", cwd=d)
             git("checkout", "-qb", "pr", cwd=d)
             for p, t in files.items(): w(p, t)
             git("add", "-A", cwd=d); git("-c", "user.name=t", "-c", "user.email=t@t", "commit", "-qm", "pr", cwd=d)
-            got = not verdict("main", "pr", labels, cwd=d, body=body, is_ruled=is_ruled)
+            got = not verdict("main", "pr", labels, cwd=d, body=body, lookup=lookup)
             if got != expect: ok = False; print(f"self-test case {i} FAILED: {files} {body!r} {labels} expected ok={expect}")
     print(f"self-test: {len(cases)} cases", "ok" if ok else "FAILED"); return ok
 

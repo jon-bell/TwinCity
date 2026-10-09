@@ -164,8 +164,8 @@ Goal: coverage of the simulation C, not of the corpus we happened to record.
 
 - Branch, PR and CI for everything. Squash-merge only when CI is green, the guarded-paths
   check passes (`scripts/check-guarded-paths.py`), and the adversary review is resolved.
-- Baselines (`oracle/baselines/`) and patches move only through a ruled ledger entry in the same
-  PR or a PR that implements a `jon-ruled` issue.
+- Patches, existing baselines (`oracle/baselines/`) and existing smoke scripts change only
+  through a ruled ledger entry in the same PR, or a PR that implements an open `jon-ruled` issue.
 - Jon reviews decisions, not PRs: one `needs-jon` issue per decision, then keep working on
   something unblocked. Anything waiting on him goes on the pinned Jon queue issue.
 - Never access TwinCity-sealed. Never commit sessions. Never force-push `main`.

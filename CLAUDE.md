@@ -48,11 +48,14 @@ Every session, in order:
 | Paths | Rule |
 |---|---|
 | `CLAUDE.md`, `docs/DESIGN.md`, `.github/**`, `scripts/check-*`, `oracle/common.sh` (spec flags), `oracle/upstream` (pinned commit), and the **Guardrails** and **Exit** text in `docs/PLAN.md` | Needs the label `jon-approved`, which only Jon applies. A ruling never unlocks these. |
-| `oracle/patches/**`, and changing or deleting any file in `oracle/baselines/` (recorded ground truth) | Allowed with a ledger entry in the same PR whose ruling is not `pending` and which is not escalated, **or** when the PR body says `Implements #N` and issue #N carries `jon-ruled`. Otherwise needs `jon-approved`. |
-| New files in `oracle/baselines/` | Allowed. The PR's own CI run has to reproduce the value, so it is measured, not chosen. |
-| `oracle/smoke-*.sh` | Normal review. Smoke scripts read their expected values from `oracle/baselines/` and must not contain them: an `EXPECT…=` line fails the check. |
+| `oracle/patches/**`, and changing or deleting an existing file in `oracle/baselines/` or an existing `oracle/smoke-*.sh` (recorded ground truth, and the scripts that say what it means) | Allowed with a ledger entry in the same PR whose ruling is not `pending` and which is not escalated, **or** when the PR carries out a ruling (below). Otherwise needs `jon-approved`. |
+| New files in `oracle/baselines/` and new `oracle/smoke-*.sh` | Allowed. The existing ones still run, and the PR's own CI has to reproduce the new value, so it is measured, not chosen. Smoke scripts read expected values from `oracle/baselines/`; an `EXPECT…=` line fails the check. |
 | `scripts/ci-extra.sh` | Agent-owned CI. `ci.yml` runs it after every guarded step, so it can add checks (including `apt-get`) but cannot weaken them. Never make it alter files that earlier steps check. |
 | Everything else, including `oracle/harness/**` and the build scripts | Normal review. CI must stay green with the baselines unchanged; that is the proof that instrumentation didn't move ground truth. |
+
+CI takes its verdict from the **base branch's** copy of the checker, so a PR can't loosen the rule
+that judges it. `ci.yml` itself still comes from the PR head, so a PR could edit it to skip the
+check; that is why `.github/**` is always guarded, and why the rule, not the lock, is the protection.
 
 **Never apply `jon-approved` or `jon-ruled` yourself, and never remove `needs-jon`.** Agents
 run on Jon's credentials, so a label is a promise, not a lock. Self-approval is the one
@@ -66,9 +69,11 @@ Jon reviews **decisions, not PRs**.
 - Put each decision in its own `needs-jon` issue: the question, the options, your
   recommendation, and the evidence. Keep the implementation out of it.
 - Jon rules by commenting on the issue and labelling it `jon-ruled`. The PR that carries the
-  ruling out says `Implements #N` in its body. It may then change patches and baselines, and you
-  merge it under step 6 like any other. If the label lands after the PR's checks ran, re-run
-  them (`gh run rerun`).
+  ruling out has a line of its own, `Implements #N` (not inside a comment or code block), and
+  also `Closes #N`. While #N is open, that PR may change patches, baselines and existing smoke
+  scripts, and you merge it under step 6 like any other. Merging closes #N, so one ruling
+  unlocks one PR; a follow-up needs a new ruling. If the label lands after the PR's checks ran,
+  re-run them (`gh run rerun`).
 - If Jon gives a decision in an interactive session, record it verbatim on the issue and ask
   him to label it. The label is still his to apply.
 - Anything that still needs Jon goes on the pinned **Jon queue** issue as one checklist line
