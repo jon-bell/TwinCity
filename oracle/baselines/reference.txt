@@ -1,0 +1,1 @@
+map=429a71a41f09285b pop=101840 funds=19051 time=336 score=318 valves=1831,1500,1500 sprites=5
