@@ -10,10 +10,13 @@ Agents may tick boxes, add tasks under a phase, and update **Now**. Changing a p
 
 Phase 0 is nearly done; Phase 1 can start in parallel. Pick from these, top first:
 
-1. `P0.5` UB detector build (`build-headless.sh` already takes `EXTRA_CFLAGS`; ASan needs `-fno-common`).
-2. `P0.6` optimisation invariance (lead: `-m32` `-O1` moves `RValve` 1890 → 1889; ledger/0001 table).
-3. `P1.2` logical-frame dumper (`probe_frame.c`'s per-tick trace is the place to grow it).
-4. `P0.7` committed identity.
+1. `P0.6` optimisation invariance. Leads: `-m32` `-O1` moves `RValve` 1890 → 1889 (ledger/0001
+   table), and `haight.cty` at 20000 frames ends with funds 775830 on the 32-bit reference build
+   but 775828 on headless and reference64 (P0.5 PR), so 32-bit itself (x87 or ILP32) changes
+   behaviour.
+2. `P1.2` logical-frame dumper (`probe_frame.c`'s per-tick trace is the place to grow it).
+3. `P0.7` committed identity.
+4. `P0.9` detector coverage (sanitized session oracle; tool and disaster sweep).
 
 Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling. ledger/0001 is
 ruled and pinned by `patches/0003`; other layout-dependent sites (P0.5 will find them) can still
@@ -33,7 +36,7 @@ from Swift.
   makefile's link order, spec flags otherwise. CI job installs `gcc-multilib`. Output: the
   VoteProblems neighbours and score under the reference layout, written into ledger/0001's
   perturbation table.
-- [ ] P0.5 **UB detector build** `oracle/build-detect.sh`. ASan + UBSan + `-ftrapv`, plus a
+- [x] P0.5 **UB detector build** `oracle/build-detect.sh`. ASan + UBSan + `-ftrapv`, plus a
   bounds-checked `Map` accessor. That accessor needs an instrumentation-only patch: the smoke
   hashes must stay unchanged when it's compiled out. It runs the smoke sessions and reports
   each site as `file:line`.
@@ -44,6 +47,12 @@ from Swift.
 - [ ] P0.8 **`Rand` range logging.** A probe (`-finstrument-functions` or an instrumentation-only
   patch) so each draw records its requested range. Calls from inside `s_sim.c` are invisible
   to `--wrap`.
+- [ ] P0.9 **Detector coverage.** P0.5 runs on the headless driver only (S1–S8 and the 24
+  cities), with no tools, no disasters and no views, and it stops at the first budget window
+  when `autoBudget` is off. Add (a) a sanitized session-oracle build that runs the `smoke-xvfb.sh`
+  session, with only `src/sim` instrumented, and (b) a detect driver that fires every disaster
+  and applies every tool at map edges (`DoMeltdown`'s unchecked `Map[SX-1..SX+2]`,
+  `s_sim.c:1153`). New sites become ledger entries.
 
 **Exit:** P0.4–P0.8 done; CI green; smoke baselines unchanged, or changed only through ruled
 ledger entries.
