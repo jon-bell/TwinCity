@@ -3,11 +3,12 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
 jobs:
   guarded-paths:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    permissions: { contents: read, issues: read, pull-requests: read }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
@@ -16,6 +17,9 @@ jobs:
       - name: Guarded paths (CLAUDE.md)
         env:
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
+          PR_BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
         run: scripts/check-guarded-paths.py origin/${{ github.base_ref }} HEAD
   oracle-and-gates:
     runs-on: ubuntu-24.04
@@ -45,3 +49,6 @@ jobs:
           dpkg --add-architecture i386 && apt-get update -qq
           apt-get install -y -qq gcc-multilib libx11-dev:i386 libxext-dev:i386 libxpm-dev:i386 >/dev/null
           oracle/build-reference.sh && oracle/smoke-reference.sh
+      # Agent-owned (CLAUDE.md): runs after every step above, so it can add checks, not weaken them.
+      - name: Agent-owned checks (scripts/ci-extra.sh)
+        run: scripts/ci-extra.sh
