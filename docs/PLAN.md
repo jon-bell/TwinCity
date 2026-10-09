@@ -162,12 +162,12 @@ Goal: coverage of the simulation C, not of the corpus we happened to record.
 
 ## Guardrails (summary; `CLAUDE.md` is authoritative)
 
-- Branch, PR and CI for everything. Squash-merge only when CI is green and no guarded path
-  is touched, or when the PR carries `jon-approved`. `scripts/check-guarded-paths.py`
-  enforces this.
-- Smoke baselines move only through a ruled ledger entry in the same PR.
-- Escalate with a GitHub issue labelled `needs-jon`, then keep working on something
-  unblocked.
+- Branch, PR and CI for everything. Squash-merge only when CI is green, the guarded-paths
+  check passes (`scripts/check-guarded-paths.py`), and the adversary review is resolved.
+- Baselines (`oracle/baselines/`) and patches move only through a ruled ledger entry in the same
+  PR or a PR that implements a `jon-ruled` issue.
+- Jon reviews decisions, not PRs: one `needs-jon` issue per decision, then keep working on
+  something unblocked. Anything waiting on him goes on the pinned Jon queue issue.
 - Never access TwinCity-sealed. Never commit sessions. Never force-push `main`.
 - Three failed attempts on one task: stop, write up the diagnosis in the task's issue, label it
   `blocked`, move on.

@@ -24,12 +24,14 @@ Every session, in order:
    that output.
 5. **Open a PR** that closes the issue. Its body states what changed, the evidence, what
    was not checked, and the plan checkbox it ticks.
-6. **Merge or hand off.** Squash-merge your own PR only when CI is green and the
-   guarded-paths check passes. Otherwise leave it open with `needs-jon`. Update **Now** in
-   `docs/PLAN.md` if the next priorities changed.
+6. **Merge or hand off.** Run the adversary review (below). Squash-merge your own PR only when
+   CI is green, the guarded-paths check passes, and every adversary finding is fixed or
+   rebutted on the PR. Otherwise label it `needs-jon` and add it to the Jon queue (below).
+   Update **Now** in `docs/PLAN.md` if the next priorities changed.
 
 **Stop and escalate** (a `needs-jon` issue, then move to other unblocked work) when:
-- a smoke baseline or recorded ground truth would change without a ruled ledger entry;
+- a smoke baseline or recorded ground truth would change without a ruled ledger entry or a
+  `jon-ruled` issue;
 - the oracle identity drifts unexpectedly;
 - a ledger ruling escalates (proposer and adversary still disagree after one rebuttal, or a
   ruling moves more than 5% of the corpus);
@@ -45,15 +47,43 @@ Every session, in order:
 
 | Paths | Rule |
 |---|---|
-| `CLAUDE.md`, `docs/DESIGN.md`, `.github/**`, `scripts/check-*`, `oracle/common.sh` (spec flags), `oracle/upstream` (pinned commit), and the **Guardrails** and **Exit** text in `docs/PLAN.md` | Needs the label `jon-approved`, which only Jon applies. |
-| `oracle/patches/**`, `oracle/smoke-*.sh` (baselines) | Allowed only together with a ledger entry in the same PR whose ruling is not `pending` and which is not escalated. Otherwise needs `jon-approved`. |
-| Everything else, including `oracle/harness/**` and the build scripts | Normal review. CI must stay green with the smoke baselines unchanged; that is the proof that instrumentation didn't move ground truth. |
+| `CLAUDE.md`, `docs/DESIGN.md`, `.github/**`, `scripts/check-*`, `oracle/common.sh` (spec flags), `oracle/upstream` (pinned commit), and the **Guardrails** and **Exit** text in `docs/PLAN.md` | Needs the label `jon-approved`, which only Jon applies. A ruling never unlocks these. |
+| `oracle/patches/**`, and changing or deleting any file in `oracle/baselines/` (recorded ground truth) | Allowed with a ledger entry in the same PR whose ruling is not `pending` and which is not escalated, **or** when the PR body says `Implements #N` and issue #N carries `jon-ruled`. Otherwise needs `jon-approved`. |
+| New files in `oracle/baselines/` | Allowed. The PR's own CI run has to reproduce the value, so it is measured, not chosen. |
+| `oracle/smoke-*.sh` | Normal review. Smoke scripts read their expected values from `oracle/baselines/` and must not contain them: an `EXPECT…=` line fails the check. |
+| `scripts/ci-extra.sh` | Agent-owned CI. `ci.yml` runs it after every guarded step, so it can add checks (including `apt-get`) but cannot weaken them. Never make it alter files that earlier steps check. |
+| Everything else, including `oracle/harness/**` and the build scripts | Normal review. CI must stay green with the baselines unchanged; that is the proof that instrumentation didn't move ground truth. |
 
-**Never apply `jon-approved` yourself, and never remove `needs-jon`.** Agents run on Jon's
-credentials, so the label is a promise, not a lock. Self-approval is the one violation that
-defeats every other guardrail. Never push to `main` directly, and never use `gh pr merge --admin` or any other bypass. Branch
+**Never apply `jon-approved` or `jon-ruled` yourself, and never remove `needs-jon`.** Agents
+run on Jon's credentials, so a label is a promise, not a lock. Self-approval is the one
+violation that defeats every other guardrail. Never push to `main` directly, and never use `gh pr merge --admin` or any other bypass. Branch
 protection requires CI, but Jon's credentials can override it (verified 2026-10-06 with a canary
 PR), so the rule is the protection.
+
+## Escalating to Jon
+
+Jon reviews **decisions, not PRs**.
+- Put each decision in its own `needs-jon` issue: the question, the options, your
+  recommendation, and the evidence. Keep the implementation out of it.
+- Jon rules by commenting on the issue and labelling it `jon-ruled`. The PR that carries the
+  ruling out says `Implements #N` in its body. It may then change patches and baselines, and you
+  merge it under step 6 like any other. If the label lands after the PR's checks ran, re-run
+  them (`gh run rerun`).
+- If Jon gives a decision in an interactive session, record it verbatim on the issue and ask
+  him to label it. The label is still his to apply.
+- Anything that still needs Jon goes on the pinned **Jon queue** issue as one checklist line
+  (link and a one-line ask). Don't ping him otherwise. Keep working on other tasks, or on a
+  branch stacked on the waiting one, in the meantime.
+
+## Adversary review (before every self-merge)
+
+Spawn a fresh reviewer agent that has no context except the PR number and this file (in Claude
+Code, a new general-purpose agent through the Agent tool, never a fork). Its brief: show that the
+PR is wrong, vacuous, or weakens a guardrail. It re-runs at least one evidence claim from the PR
+body, tries to make each new check pass when it should fail, and looks for ground truth moved
+outside the rules above. It posts one PR comment that starts `adversary-review:` and lists its
+findings, or says `no findings` and what it tried. Fix each finding or rebut it in a reply. If
+you still disagree after one rebuttal, label the PR `needs-jon` and add it to the Jon queue.
 
 ## What "done" means for a port
 
