@@ -15,7 +15,7 @@ grep "^FAIL" /tmp/detect-swap.out | head -3
 echo "== detector fault: plant (three planted UB sites must be reported)"
 if oracle/run-detect.sh --fault-plant > /tmp/detect-plant.out 2>&1; then
   cat /tmp/detect-plant.out; echo "FAIL --fault-plant passed"; exit 1; fi
-grep -q "^plant: all three planted sites reported" /tmp/detect-plant.out || { cat /tmp/detect-plant.out; echo "FAIL --fault-plant: planted sites missed"; exit 1; }
+grep -q "^plant: all three planted sites reported; the Map row overrun by rowcheck only, at its original address" /tmp/detect-plant.out || { cat /tmp/detect-plant.out; echo "FAIL --fault-plant: planted sites missed"; exit 1; }
 grep "^plant:" /tmp/detect-plant.out
 echo "== detector"
 oracle/build-detect.sh > /dev/null

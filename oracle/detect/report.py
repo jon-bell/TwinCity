@@ -3,7 +3,7 @@
 
   <src-relative file:line>  <detector>  <kind>  sessions=<s1,s2,...>
 
-detector is asan, ubsan or rowcheck. kind is the sanitizer's error class, or for UBSan its
+detector is asan, ubsan or rowcheck (an ASan ABRT is a -ftrapv trap, at its first sim frame). kind is the sanitizer's error class, or for UBSan its
 message with numbers replaced by N, so the line is stable across sessions.
   report.py LOGDIR      reads LOGDIR/<session>.log
 """
@@ -15,15 +15,19 @@ def rel(path_line):
     return f"{m.group(1)}:{m.group(2)}" if m else None
 
 def sites(text):
+    """Every detector line becomes a site. A line it can't attribute becomes site `?` (and makes
+    report.py exit 1), so a format it doesn't know fails closed instead of vanishing."""
     out = set(); lines = text.splitlines()
     for i, l in enumerate(lines):
-        m = re.match(r"(\S+?):(\d+):\d+: runtime error: (.*)", l)
-        if m:
-            kind = re.sub(r"-?\b(0x[0-9a-f]+|\d+(\.\d+)?(e[+-]?\d+)?)\b", "N", m.group(3))
-            out.add((rel(f"{m.group(1)}:{m.group(2)}") or m.group(1) + ":" + m.group(2), "ubsan", kind)); continue
-        m = re.match(r"rowcheck: (\w+)\[-?\d+\]\[-?\d+\] at (\S+:\d+)", l)
-        if m:
-            out.add((rel(m.group(2)) or m.group(2), "rowcheck", f"{m.group(1)} subscript out of range")); continue
+        if "runtime error:" in l:
+            m = re.match(r"(.*?):(\d+)(?::\d+)?: runtime error: (.*)", l)
+            msg = m.group(3) if m else l.split("runtime error:", 1)[1].strip()
+            kind = re.sub(r"-?\b(0x[0-9a-f]+|\d+(\.\d+)?(e[+-]?\d+)?)\b", "N", msg)
+            out.add(((rel(f"{m.group(1)}:{m.group(2)}") if m else None) or "?", "ubsan", kind)); continue
+        if l.startswith("rowcheck:"):
+            m = re.match(r"rowcheck: (\w+)\[-?\d+\]\[-?\d+\] at (\S+:\d+)", l)
+            out.add(((rel(m.group(2)) if m else None) or "?", "rowcheck",
+                     f"{m.group(1) if m else '?'} subscript out of range")); continue
         m = re.search(r"ERROR: AddressSanitizer: (\S+)", l)
         if m:
             site = None
@@ -40,3 +44,4 @@ if __name__ == "__main__":
     key = lambda s: (s[0].rsplit(":", 1)[0], int(s[0].rsplit(":", 1)[1]) if s[0] != "?" else 0, s[1], s[2])
     for s in sorted(seen, key=key):
         print(f"{s[0]}  {s[1]}  {s[2]}  sessions={','.join(seen[s])}")
+    sys.exit(1 if any(s[0] == "?" for s in seen) else 0)
