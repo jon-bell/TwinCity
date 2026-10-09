@@ -10,10 +10,10 @@ Agents may tick boxes, add tasks under a phase, and update **Now**. Changing a p
 
 Phase 0 is nearly done; Phase 1 can start in parallel. Pick from these, top first:
 
-1. `P1.1` frame-stepped scheduler for the Xvfb oracle.
-2. `P0.5` UB detector build.
-3. `P0.6` optimisation invariance (lead: `-m32` `-O1` moves `RValve` 1890 → 1889; ledger/0001 table).
-4. `P1.2` logical-frame dumper.
+1. `P0.5` UB detector build (`build-headless.sh` already takes `EXTRA_CFLAGS`; ASan needs `-fno-common`).
+2. `P0.6` optimisation invariance (lead: `-m32` `-O1` moves `RValve` 1890 → 1889; ledger/0001 table).
+3. `P1.2` logical-frame dumper (`probe_frame.c`'s per-tick trace is the place to grow it).
+4. `P0.7` committed identity.
 
 Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling. ledger/0001 is
 ruled and pinned by `patches/0003`; other layout-dependent sites (P0.5 will find them) can still
@@ -53,7 +53,7 @@ ledger entries.
 Goal: record any session of the original, with views open, deterministically. Replay it
 headlessly where the headless build applies.
 
-- [ ] P1.1 **Frame-stepped scheduler.** Wrap the Tk timer handlers and `after` so that time
+- [x] P1.1 **Frame-stepped scheduler.** Wrap the Tk timer handlers and `after` so that time
   advances only by tick on the virtual clock. Earthquake end (3000 ms), budget countdown and
   DropFireBombs all become tick-scheduled. Proof: identical recordings at two different
   wall-clock speeds of the host.
