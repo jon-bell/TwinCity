@@ -54,4 +54,9 @@ Harness (`harness/`), all link-time `--wrap`, with no source edits:
 Known gaps, which are phase-1 work:
 - range logging for `Rand` (calls from inside `s_sim.c` aren't interceptable by `--wrap`);
 - logical-frame dumps (currently screenshots only);
+- wall-clock inputs left for event injection (P1.6): X server timestamps (double-click, selection
+  timeouts) and stdin under `-t` still come from the real world; injected events need virtual
+  timestamps;
+- of the scheduler's timed paths, only the earthquake end is exercised (in `smoke-xvfb.sh`); the
+  budget countdown and DropFireBombs wait for scripted sessions;
 - full-state snapshots.

@@ -2,7 +2,8 @@
  * (UpdateFlush runs at the end of every sim_update, including Kick-driven ones).
  *   TWINCITY_CAPS=t1,t2,...  xwd the root window at those ticks into $TWINCITY_OUT
  *   TWINCITY_STOP=n          exit after tick n
- *   TWINCITY_TRACE=file      one line per tick: tick, CityTime, draws, vclock, ShakeNow, SimSpeed
+ *   TWINCITY_TRACE=file      one line per tick: tick, CityTime, draws, vclock, ShakeNow, SimSpeed,
+ *                            flagBlink
  *   TWINCITY_WALL_DELAY_US=n sleep n real microseconds per tick: a slower host, for proving
  *                            the scheduler (sched.c) makes recordings independent of host speed
  * TODO(phase 1): dump the logical frame (per-view tile cache, sprites, overlay state,
@@ -25,8 +26,8 @@ void __wrap_UpdateFlush(void) {
   for (xd = XDisplays; xd; xd = xd->next) XSync(xd->dpy, False);
   if (!trace_init) { trace_init = 1; if (getenv("TWINCITY_TRACE")) trace_f = fopen(getenv("TWINCITY_TRACE"), "w"); }
   if (trace_f) {
-    fprintf(trace_f, "%d %d %ld %lld %d %d\n", ticks, (int)CityTime, twincity_rand_draws(),
-            twincity_vclock_us(), ShakeNow, SimSpeed);
+    fprintf(trace_f, "%d %d %ld %lld %d %d %d\n", ticks, (int)CityTime, twincity_rand_draws(),
+            twincity_vclock_us(), ShakeNow, SimSpeed, flagBlink);
     fflush(trace_f);
   }
   if (getenv("TWINCITY_WALL_DELAY_US")) usleep(atoi(getenv("TWINCITY_WALL_DELAY_US")));

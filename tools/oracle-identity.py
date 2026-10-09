@@ -12,7 +12,7 @@ K&R C under a modern compiler is where layout-dependent behaviour moves (ledger/
   tools/oracle-identity.py            print identity JSON
   tools/oracle-identity.py --check F  exit 1 if the current identity differs from F's
 """
-import hashlib, json, pathlib, subprocess, sys
+import hashlib, json, os, pathlib, subprocess, sys
 
 ROOT = pathlib.Path(__file__).resolve().parent.parent
 O = ROOT / "oracle"
@@ -22,6 +22,11 @@ INPUTS = sorted(
     + list((O / "harness").glob("*.c"))
     + [p for p in (O / "stubinc").rglob("*") if p.is_file()]
 )
+
+# Runtime knobs that change what the oracle records. Set ones join the digest, so a recording
+# made with, say, the scheduler off or faulted cannot claim the default identity. (Unset, the
+# identity is unchanged. TWINCITY_WALL_DELAY_US is not here: smoke-xvfb.sh proves it inert.)
+KNOBS = ["TWINCITY_SCHED", "TWINCITY_SCHED_FAULT", "TWINCITY_VCLOCK_STEP_US", "TWINCITY_VCLOCK_EPOCH"]
 
 def run(*cmd):
     try:
@@ -35,6 +40,8 @@ def identity():
     upstream = run("git", "-C", str(O / "upstream"), "rev-parse", "HEAD")
     gdat = (O / "build/xvfb/GDAT")
     comps = {"upstream": upstream, "compiler": compiler[0] if compiler else None, "files": files}
+    knobs = {k: os.environ[k] for k in KNOBS if k in os.environ}
+    if knobs: comps["knobs"] = knobs
     digest = hashlib.sha256(json.dumps(comps, sort_keys=True).encode()).hexdigest()[:16]
     return {"identity": digest, **comps,
             "env": {"tclxgdat": gdat.read_text().strip() if gdat.exists() else None}}  # recorded, not compared
@@ -45,8 +52,8 @@ if __name__ == "__main__":
         want = json.loads(pathlib.Path(sys.argv[2]).read_text())
         if want["identity"] != cur["identity"]:
             changed = [k for k in set(cur["files"]) | set(want["files"]) if cur["files"].get(k) != want["files"].get(k)]
-            for k in ("upstream", "compiler"):
-                if cur[k] != want[k]: changed.append(k)
+            for k in ("upstream", "compiler", "knobs"):
+                if cur.get(k) != want.get(k): changed.append(k)
             print(f"identity drift {want['identity']} -> {cur['identity']}: {sorted(changed)}"); sys.exit(1)
         print(f"ok {cur['identity']}"); sys.exit(0)
     print(json.dumps(cur, indent=2))

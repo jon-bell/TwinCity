@@ -12,12 +12,17 @@
  * virtual times that are a function of the session alone, never of wall-clock speed.
  *
  * Timers live in our queue, not Tk's, with tkevent.c's arithmetic and ordering copied
- * exactly, quirks included (C: tk/tkevent.c:926-1103):
+ * exactly, quirks included (C: tclx/tkucbsrc/tkevent.c:928-1105, the copy libtk.a links;
+ * tk/tkevent.c differs only in TclX signal checks):
  *  - Tk_CreateTimerHandler and Tk_CreateMicroTimerHandler keep *separate* id counters, so
  *    their tokens collide, and Tk_DeleteTimerHandler removes the first match in queue order;
  *  - usec is normalised with `> 1000000`, so 1000000 is a legal usec;
  *  - a new timer goes after every timer due at the same time or earlier (FIFO on ties);
- *  - a timer fires when strictly earlier than now, so it runs at due + 1 us.
+ *  - a timer fires when strictly earlier than now, so it runs at due + 1 us;
+ *  - Tk_DoOneEvent's phase order: X/file events, then one *due* timer, then the delayed
+ *    motion event, then idle handlers, then wait. Timers that tie with the one that moved the
+ *    clock are due at once, so they fire back to back, before idle handlers and inside
+ *    `update` (TK_DONT_WAIT), as in Tk.
  * TWINCITY_SCHED=off passes everything through to real Tk (the old harness: virtual time
  * stepped per gettimeofday call, which couples it to host speed only sporadically).
  * TWINCITY_SCHED_FAULT=wallclock is the planted fault for smoke-xvfb.sh: each timer firing
@@ -68,18 +73,18 @@ Tk_TimerToken __wrap_Tk_CreateTimerHandler(int milliseconds, Tk_TimerProc *proc,
   if (!twincity_sched_owns_clock()) return __real_Tk_CreateTimerHandler(milliseconds, proc, cd);
   gettimeofday(&tv, NULL);
   sec = tv.tv_sec + milliseconds/1000; usec = tv.tv_usec + (milliseconds%1000)*1000;
-  if (usec > 1000000) { usec -= 1000000; sec += 1; }   /* C: tkevent.c:944 (sic: >) */
+  if (usec > 1000000) { usec -= 1000000; sec += 1; }   /* C: tkucbsrc/tkevent.c:946 (sic: >) */
   id++;
   return insert(sec, usec, proc, cd, id);
 }
 
 Tk_TimerToken __wrap_Tk_CreateMicroTimerHandler(int seconds, int microseconds, Tk_TimerProc *proc, ClientData cd) {
-  static int id = 0;   /* C: tkevent.c:1011, a second counter: tokens collide with the above */
+  static int id = 0;   /* C: tkucbsrc/tkevent.c:1013, a second counter: tokens collide with the above */
   struct timeval tv; long sec, usec;
   if (!twincity_sched_owns_clock()) return __real_Tk_CreateMicroTimerHandler(seconds, microseconds, proc, cd);
   gettimeofday(&tv, NULL);
   sec = tv.tv_sec + seconds; usec = tv.tv_usec + microseconds;
-  while (usec > 1000000) { usec -= 1000000; sec += 1; }   /* C: tkevent.c:1022 */
+  while (usec > 1000000) { usec -= 1000000; sec += 1; }   /* C: tkucbsrc/tkevent.c:1024 */
   id++;
   return insert(sec, usec, proc, cd, id);
 }
@@ -116,17 +121,24 @@ static void fire_next(void) {
   free(t);
 }
 
+static int head_due(void) {   /* C: tkucbsrc/tkevent.c checkTime: timer time strictly < now */
+  long long now = twincity_vclock_us();
+  long sec = (long)(now / 1000000LL), usec = (long)(now % 1000000LL);
+  return queue != NULL && ((queue->sec < sec) || ((queue->sec == sec) && (queue->usec < usec)));
+}
+
 int __wrap_Tk_DoOneEvent(int flags) {
-  int f = flags, r;
+  int f = flags;
   if (!twincity_sched_owns_clock()) return __real_Tk_DoOneEvent(flags);
-  if ((f & TK_ALL_EVENTS) == 0) f |= TK_ALL_EVENTS;      /* C: tkevent.c:1231 */
+  if ((f & TK_ALL_EVENTS) == 0) f |= TK_ALL_EVENTS;      /* C: tkucbsrc/tkevent.c:1233 */
   sync_displays();
-  /* A call that cannot block (TK_DONT_WAIT, or idle-only) behaves as in Tk. No virtual timer
-   * is ever due without the clock moving, and the clock moves only below. */
-  if ((f & TK_DONT_WAIT) || !(f & (TK_TIMER_EVENTS|TK_FILE_EVENTS|TK_X_EVENTS)))
-    return __real_Tk_DoOneEvent(flags);
-  r = __real_Tk_DoOneEvent(f | TK_DONT_WAIT);
-  if (r) return r;
+  /* Tk's phases in Tk's order, none of them waiting. */
+  if ((f & (TK_X_EVENTS|TK_FILE_EVENTS))
+      && __real_Tk_DoOneEvent((f & (TK_X_EVENTS|TK_FILE_EVENTS)) | TK_DONT_WAIT)) return 1;
+  if ((f & TK_TIMER_EVENTS) && head_due()) { fire_next(); return 1; }
+  if (__real_Tk_DoOneEvent((f & ~TK_TIMER_EVENTS) | TK_DONT_WAIT)) return 1;   /* motion, idle */
+  /* Nothing ready. A call that may not block returns, as in Tk; otherwise time passes. */
+  if ((f & TK_DONT_WAIT) || !(f & (TK_TIMER_EVENTS|TK_FILE_EVENTS|TK_X_EVENTS))) return 0;
   if ((f & TK_TIMER_EVENTS) && queue != NULL) { fire_next(); return 1; }
   fprintf(stderr, "twincity-sched: would block forever at vclock %lld us (no timers, no events)\n",
           twincity_vclock_us());
@@ -135,7 +147,7 @@ int __wrap_Tk_DoOneEvent(int flags) {
 
 void __wrap_Tk_MainLoop(void) {
   if (!twincity_sched_owns_clock()) { __real_Tk_MainLoop(); return; }
-  while (!tkMustExit && tk_NumMainWindows > 0)           /* C: tkevent.c:1538 */
+  while (!tkMustExit && tk_NumMainWindows > 0)           /* C: tkucbsrc/tkevent.c:1544 */
     __wrap_Tk_DoOneEvent(0);
 }
 
