@@ -10,13 +10,14 @@ Agents may tick boxes, add tasks under a phase, and update **Now**. Changing a p
 
 Phase 0 is nearly done; Phase 1 can start in parallel. Pick from these, top first:
 
-1. `P0.6` optimisation invariance. Leads: `-m32` `-O1` moves `RValve` 1890 → 1889 (ledger/0001
+1. `P0.5` remainder: the xvfb smoke session under the detector (#14).
+2. `P0.6` optimisation invariance. Leads: `-m32` `-O1` moves `RValve` 1890 → 1889 (ledger/0001
    table), and `haight.cty` at 20000 frames ends with funds 775830 on the 32-bit reference build
-   but 775828 on headless and reference64 (P0.5 PR), so 32-bit itself (x87 or ILP32) changes
+   but 775828 on headless and reference64 (#15), so 32-bit itself (x87 or ILP32) changes
    behaviour.
-2. `P1.2` logical-frame dumper (`probe_frame.c`'s per-tick trace is the place to grow it).
-3. `P0.7` committed identity.
-4. `P0.9` detector coverage (sanitized session oracle; tool and disaster sweep).
+3. `P1.2` logical-frame dumper (`probe_frame.c`'s per-tick trace is the place to grow it).
+4. `P0.7` committed identity.
+5. `P0.9` detector coverage (tool and disaster sweep; raw-pointer map reads).
 
 Waiting on Jon (don't block on these; work elsewhere): ledger/0002 ruling. ledger/0001 is
 ruled and pinned by `patches/0003`; other layout-dependent sites (P0.5 will find them) can still
@@ -36,10 +37,14 @@ from Swift.
   makefile's link order, spec flags otherwise. CI job installs `gcc-multilib`. Output: the
   VoteProblems neighbours and score under the reference layout, written into ledger/0001's
   perturbation table.
-- [x] P0.5 **UB detector build** `oracle/build-detect.sh`. ASan + UBSan + `-ftrapv`, plus a
+- [ ] P0.5 **UB detector build** `oracle/build-detect.sh`. ASan + UBSan + `-ftrapv`, plus a
   bounds-checked `Map` accessor. That accessor needs an instrumentation-only patch: the smoke
   hashes must stay unchanged when it's compiled out. It runs the smoke sessions and reports
   each site as `file:line`.
+  *Status:* the headless half landed in #16: S1–S8 and the 24 cities, 1250 ticks each, with
+  `baselines/detect-sites.txt` and the ledger/0003 finding. **Remaining:** run the
+  `smoke-xvfb.sh` session under the detector, through a sanitized session-oracle build with
+  only `src/sim` instrumented.
 - [ ] P0.6 **Optimisation invariance.** `smoke-headless.sh` also builds `-O2` and asserts the
   same hash as `-O0`. A difference is a ledger entry, not a flag change.
 - [ ] P0.7 **Committed identity.** `oracle/IDENTITY.json`, written by `tools/oracle-identity.py`.
@@ -47,12 +52,11 @@ from Swift.
 - [ ] P0.8 **`Rand` range logging.** A probe (`-finstrument-functions` or an instrumentation-only
   patch) so each draw records its requested range. Calls from inside `s_sim.c` are invisible
   to `--wrap`.
-- [ ] P0.9 **Detector coverage.** P0.5 runs on the headless driver only (S1–S8 and the 24
-  cities), with no tools, no disasters and no views, and it stops at the first budget window
-  when `autoBudget` is off. Add (a) a sanitized session-oracle build that runs the `smoke-xvfb.sh`
-  session, with only `src/sim` instrumented, and (b) a detect driver that fires every disaster
-  and applies every tool at map edges (`DoMeltdown`'s unchecked `Map[SX-1..SX+2]`,
-  `s_sim.c:1153`). New sites become ledger entries.
+- [ ] P0.9 **Detector coverage.** P0.5 has no tools, no disasters, and no checks on raw-pointer
+  map accesses. Add a detect driver that fires every disaster and applies every tool at map
+  edges (`DoMeltdown`'s unchecked `Map[SX-1..SX+2]`, `s_sim.c:1153`), and instrument the
+  `TileAdrPtr[±1]`/`[±WORLD_Y]` neighbour reads in `w_con.c`, which `TC_AT` doesn't see. New
+  sites become ledger entries.
 
 **Exit:** P0.4–P0.8 done; CI green; smoke baselines unchanged, or changed only through ruled
 ledger entries.
