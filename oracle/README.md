@@ -9,6 +9,7 @@ apply `patches/` in order. **Every patch is part of the recorder identity**
 |---|---|---|
 | headless | `build-headless.sh` → `build/headless/{liboracle.a,twincity-headless}` | per-function differential gates (Swift links `liboracle.a` in-process); fast smoke runs. Runs `SimFrame`+`MoveObjects` only: no views, speed 3. **Not** a session oracle. |
 | xvfb | `build-xvfb.sh` → `build/xvfb/tree/src/sim/sim` | the session oracle: full app, real Tk, views open, virtual clock |
+| detect | `build-detect.sh` → `build/detect/{twincity-detect,twincity-detect-off}`; `run-detect.sh` | UB detector (P0.5): the headless sources under ASan + UBSan + `-ftrapv`, `-fno-common -fno-wrapv`, plus bounds-checked row-pointer maps (`detect/row-accessor.py`). Reports each site as `file:line` into `build/detect/SITES`; the expected list is `baselines/detect-sites.txt`. Not a recording oracle; `detect/` is outside the identity. |
 | reference | `build-reference.sh` → `build/reference/{tree/src/sim/sim,twincity-reference}` | ledger rulings: the full app at `-m32`, linked by the original makefile; `twincity-reference` is that link entered through the headless driver (`twincity-reference RES S2 3000`) |
 
 **Layout is a property of the whole link.** GNU ld places common symbols in link-hash-table
