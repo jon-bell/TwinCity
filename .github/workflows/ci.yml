@@ -3,20 +3,29 @@ on:
   push:
     branches: [main]
   pull_request:
-    types: [opened, synchronize, reopened, labeled, unlabeled]
+    types: [opened, synchronize, reopened, labeled, unlabeled, edited]
 jobs:
   guarded-paths:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-24.04
+    permissions: { contents: read, issues: read, pull-requests: read }
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - name: Guarded-path checker self-test
+      - name: Guarded-path checker self-test (this PR's copy)
         run: scripts/check-guarded-paths.py --self-test
-      - name: Guarded paths (CLAUDE.md)
+      # The verdict comes from the BASE branch's checker, so a PR cannot loosen the rule that
+      # judges it. (ci.yml itself still comes from the PR head; see CLAUDE.md, Guarded paths.)
+      - name: Guarded paths (CLAUDE.md), judged by the base branch's checker
         env:
+          BASE: ${{ github.base_ref }}
           PR_LABELS: ${{ join(github.event.pull_request.labels.*.name, ',') }}
-        run: scripts/check-guarded-paths.py origin/${{ github.base_ref }} HEAD
+          PR_BODY: ${{ github.event.pull_request.body }}
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          git show "origin/$BASE:scripts/check-guarded-paths.py" > "$RUNNER_TEMP/check-guarded-paths.py"
+          python3 "$RUNNER_TEMP/check-guarded-paths.py" "origin/$BASE" HEAD
   oracle-and-gates:
     runs-on: ubuntu-24.04
     container: swift:6.2-noble
@@ -45,3 +54,6 @@ jobs:
           dpkg --add-architecture i386 && apt-get update -qq
           apt-get install -y -qq gcc-multilib libx11-dev:i386 libxext-dev:i386 libxpm-dev:i386 >/dev/null
           oracle/build-reference.sh && oracle/smoke-reference.sh
+      # Agent-owned (CLAUDE.md): runs after every step above, so it can add checks, not weaken them.
+      - name: Agent-owned checks (scripts/ci-extra.sh)
+        run: scripts/ci-extra.sh
