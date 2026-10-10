@@ -20,9 +20,16 @@
   (`oracle/build-detect-xvfb.sh`, P0.5), 2026-10-10. Recorded in
   `oracle/baselines/detect-xvfb-sites.txt`.
 - **sessions:** 14 of the 32 xvfb detect sessions (3000 ticks each). The list is in the
-  baseline. The headless driver never reaches it: `doMessage` runs only from
-  `updateDate` (`w_update.c:176`) → `DoUpdateHeads` → `sim_update_editors` (`sim.c:284`), which is
-  the session oracle's UI path.
+  baseline. The headless detect runs (`run-detect.sh`: the same 32 sessions, 1250 ticks) don't
+  reach `:316`, but headless does run `doMessage`. `DoUpdateHeads` → `updateDate`
+  (`w_update.c:176`) is reached from `DoBudgetNow` (`w_budget.c:198`, `:209`; yearly via
+  `CollectTax`, `s_sim.c:660`) and `InitWillStuff` (`s_init.c:130`), as well as from the
+  session oracle's `sim_update_editors` (`sim.c:284`). The adversary review of #18 used gdb on the
+  headless build. On `haight.cty` at 20000 frames: 28 `doMessage` calls and 25 `TickCount`
+  calls, all at `:308` (the `MessagePort` branch). S1 and S2: 3 `doMessage` calls each. A port
+  of `doMessage`/`TickCount` therefore runs on headless-gated paths too. (The
+  `build-headless.sh:4` comment, "never runs … doMessage", is wrong. It isn't corrected here,
+  because that file is an input to the oracle identity.)
 - **perturbation:** the values below are `TickCount()` from a stand-alone reproduction of the
   `w_stubs.c:106` expression (gcc 13.3, `-std=gnu89 -fwrapv -O1`), on virtual-clock instants from
   the S1 run. They are not yet from the oracle builds:

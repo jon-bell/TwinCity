@@ -17,7 +17,8 @@
 # (ASan can't see it) and at its original address; it always exits non-zero, so CI also greps
 # for the "plant: all" line. --fault-swap rebuilds with DETECT_FAULT=swap, so check 1 must catch
 # a non-original compiled-out TC_AT. --fault-steer rebuilds with DETECT_FAULT=steer (the detect
-# side TC_AT shifts every column subscript by one), so check 2 must fail on every session.
+# side TC_AT shifts every column subscript by one, detect/faults.sh), so check 2 must fail on every
+# session. Plant must also fail check 4, since its sites aren't in the baseline.
 # --fault-noresume runs the sessions without TWINCITY_DETECT_RESUME, so check 3 must fail.
 # Needs oracle/build/headless (build-headless.sh) for check 1.
 . "$(dirname "$0")/common.sh"

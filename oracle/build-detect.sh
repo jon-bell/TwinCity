@@ -24,7 +24,7 @@ SIM="s_alloc s_disast s_eval s_fileio s_gen s_init s_msg s_power s_scan s_sim s_
 . "$ORACLE/detect/faults.sh"
 [ "${DETECT_FAULT:-}" = plant ] && fault_plant "$S/sim"
 "$ORACLE/detect/row-accessor.py" "$S/sim" $SIM | tee "$B/ROWS"
-[ "${DETECT_FAULT:-}" = steer ] && fault_steer "$S/sim"
+[ "${DETECT_FAULT:-}" = steer ] && fault_steer_shift "$S/sim"
 [ "${DETECT_FAULT:-}" = swap ] && fault_swap "$S/sim"
 INC="-I$ORACLE/stubinc -I$S/sim/headers -I$S/tcl -I$S/tk -I$S/tclx/src"
 SAN="-fno-common -fno-wrapv -ftrapv -fno-omit-frame-pointer -fsanitize=address,undefined,float-cast-overflow,float-divide-by-zero -fsanitize-recover=all"

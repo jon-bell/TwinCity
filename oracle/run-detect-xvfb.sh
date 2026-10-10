@@ -13,13 +13,16 @@
 #      don't steer), and both exit 0 after STOP ticks;
 #   3. every session's CityTime advances at least MIN_CT from tick 10 (a city loads at tick 3) to
 #      STOP: the sim really ran.
-#   4. SITES equals baselines/detect-xvfb-sites.txt (a new site, or a vanished one, is a finding).
+#   4. SITES equals baselines/detect-xvfb-sites.txt (a new site, or a vanished one, is a finding);
+#      with SESSIONS set, the sites alone, without their session lists.
 # Fault modes, each must FAIL (CI asserts it): --fault-plant, --fault-swap, --fault-steer rebuild
 # with DETECT_FAULT=plant|swap|steer (oracle/detect/faults.sh): plant must report all three
 # planted sites, the Map row overrun by rowcheck only and at its original address (it always
 # exits non-zero, so CI also greps for the "plant: all" line); swap must fail check 1; steer
 # must fail check 2. --fault-short runs every session for STOP/10 ticks, so check 3 must fail.
-# SESSIONS overrides the session list (CI's fault runs use two). Needs oracle/build/xvfb.
+# Plant must also fail check 4 (its sites aren't in the baseline). SESSIONS overrides the session
+# list (CI's fault runs, and one clean run, use S1 and finnigan.cty, which between them reach every
+# baseline site). Needs oracle/build/xvfb.
 . "$(dirname "$0")/common.sh"
 X="$ORACLE/build/xvfb"; T="$X/tree"; REF="$T/src/sim/sim"; B="$ORACLE/build/detect-xvfb"
 STOP=3000; MIN_CT=150; fail=0
@@ -31,6 +34,7 @@ case "${1:-}" in
   *) echo "usage: $0 [--fault-plant|--fault-swap|--fault-steer|--fault-short]" >&2; exit 2 ;;
 esac
 RUN_STOP=$STOP; [ "${1:-}" = --fault-short ] && RUN_STOP=$((STOP / 10))
+SUBSET=${SESSIONS:+1}
 SESSIONS=${SESSIONS:-"S1 S2 S3 S4 S5 S6 S7 S8 $(cd "$T/cities" && ls *.cty | tr '\n' ' ')"}
 D=${TWINCITY_DISPLAY:-:92}
 Xvfb "$D" -screen 0 1280x1024x24 -nolisten tcp -fp "$T/res/dejavu-lgc/,/usr/share/fonts/X11/misc/,built-ins" >/dev/null 2>&1 &
@@ -92,6 +96,11 @@ if [ "${1:-}" = --fault-plant ]; then
   [ $missed = 0 ] && echo "plant: all three planted sites reported; the Map row overrun by rowcheck only, at its original address"
   fail=1
 fi
-diff -u "$ORACLE/baselines/detect-xvfb-sites.txt" "$B/SITES" || { echo "FAIL detect sites differ from baselines/detect-xvfb-sites.txt"; fail=1; }
+# With SESSIONS set, the session lists can't match the baseline's, so check 4 compares the sites
+# alone (file:line, detector, kind); the subset still has to reach every baseline site.
+if [ -n "$SUBSET" ]; then
+  sed 's/  sessions=.*//' "$ORACLE/baselines/detect-xvfb-sites.txt" > "$B/SITES.want"; sed 's/  sessions=.*//' "$B/SITES" > "$B/SITES.got"
+else cp "$ORACLE/baselines/detect-xvfb-sites.txt" "$B/SITES.want"; cp "$B/SITES" "$B/SITES.got"; fi
+diff -u "$B/SITES.want" "$B/SITES.got" || { echo "FAIL detect sites differ from baselines/detect-xvfb-sites.txt${SUBSET:+ (sites only: SESSIONS is set)}"; fail=1; }
 [ $fail = 0 ] && echo "ok  detector (session oracle): compiled-out rewrite is inert; detector doesn't steer; sites match baseline"
 exit $fail

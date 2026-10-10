@@ -20,7 +20,7 @@ SIM=$(sed -n '/^SRCS = /,/^$/p' "$S/makefile" | grep -o '[a-z_]*\.c' | sed 's/\.
 . "$ORACLE/detect/faults.sh"
 [ "${DETECT_FAULT:-}" = plant ] && fault_plant "$S"
 "$ORACLE/detect/row-accessor.py" "$S" $SIM | tee "$B/ROWS"
-[ "${DETECT_FAULT:-}" = steer ] && fault_steer "$S"
+[ "${DETECT_FAULT:-}" = steer ] && fault_steer_transpose "$S"
 [ "${DETECT_FAULT:-}" = swap ] && fault_swap "$S"
 P="${OPT:--O1} -g $SPEC_CFLAGS"
 SAN="-fno-common -fno-wrapv -ftrapv -fno-omit-frame-pointer -fsanitize=address,undefined,float-cast-overflow,float-divide-by-zero -fsanitize-recover=all"
