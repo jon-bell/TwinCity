@@ -20,6 +20,7 @@
 # planted sites, the Map row overrun by rowcheck only and at its original address (it always
 # exits non-zero, so CI also greps for the "plant: all" line); swap must fail check 1; steer
 # must fail check 2. --fault-short runs every session for STOP/10 ticks, so check 3 must fail.
+# --fault-baseline compares against the baseline minus its first line, so check 4 alone must fail.
 # Plant must also fail check 4 (its sites aren't in the baseline). SESSIONS overrides the session
 # list (CI's fault runs, and one clean run, use S1 and finnigan.cty, which between them reach every
 # baseline site). Needs oracle/build/xvfb.
@@ -30,9 +31,11 @@ case "${1:-}" in
   --fault-plant) DETECT_FAULT=plant "$ORACLE/build-detect-xvfb.sh" >/dev/null ;;
   --fault-swap)  DETECT_FAULT=swap  "$ORACLE/build-detect-xvfb.sh" >/dev/null ;;
   --fault-steer) DETECT_FAULT=steer "$ORACLE/build-detect-xvfb.sh" >/dev/null ;;
-  --fault-short|"") ;;
-  *) echo "usage: $0 [--fault-plant|--fault-swap|--fault-steer|--fault-short]" >&2; exit 2 ;;
+  --fault-short|--fault-baseline|"") ;;
+  *) echo "usage: $0 [--fault-plant|--fault-swap|--fault-steer|--fault-short|--fault-baseline]" >&2; exit 2 ;;
 esac
+BASE="$ORACLE/baselines/detect-xvfb-sites.txt"
+if [ "${1:-}" = --fault-baseline ]; then mkdir -p "$B"; tail -n +2 "$BASE" > "$B/BASELINE.fault"; BASE="$B/BASELINE.fault"; fi
 RUN_STOP=$STOP; [ "${1:-}" = --fault-short ] && RUN_STOP=$((STOP / 10))
 SUBSET=${SESSIONS:+1}
 SESSIONS=${SESSIONS:-"S1 S2 S3 S4 S5 S6 S7 S8 $(cd "$T/cities" && ls *.cty | tr '\n' ' ')"}
@@ -99,8 +102,8 @@ fi
 # With SESSIONS set, the session lists can't match the baseline's, so check 4 compares the sites
 # alone (file:line, detector, kind); the subset still has to reach every baseline site.
 if [ -n "$SUBSET" ]; then
-  sed 's/  sessions=.*//' "$ORACLE/baselines/detect-xvfb-sites.txt" > "$B/SITES.want"; sed 's/  sessions=.*//' "$B/SITES" > "$B/SITES.got"
-else cp "$ORACLE/baselines/detect-xvfb-sites.txt" "$B/SITES.want"; cp "$B/SITES" "$B/SITES.got"; fi
+  sed 's/  sessions=.*//' "$BASE" > "$B/SITES.want"; sed 's/  sessions=.*//' "$B/SITES" > "$B/SITES.got"
+else cp "$BASE" "$B/SITES.want"; cp "$B/SITES" "$B/SITES.got"; fi
 diff -u "$B/SITES.want" "$B/SITES.got" || { echo "FAIL detect sites differ from baselines/detect-xvfb-sites.txt${SUBSET:+ (sites only: SESSIONS is set)}"; fail=1; }
 [ $fail = 0 ] && echo "ok  detector (session oracle): compiled-out rewrite is inert; detector doesn't steer; sites match baseline"
 exit $fail

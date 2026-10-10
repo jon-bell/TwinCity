@@ -20,6 +20,7 @@
 # side TC_AT shifts every column subscript by one, detect/faults.sh), so check 2 must fail on every
 # session. Plant must also fail check 4, since its sites aren't in the baseline.
 # --fault-noresume runs the sessions without TWINCITY_DETECT_RESUME, so check 3 must fail.
+# --fault-baseline compares against the baseline minus its first line, so check 4 alone must fail.
 # Needs oracle/build/headless (build-headless.sh) for check 1.
 . "$(dirname "$0")/common.sh"
 B="$ORACLE/build/detect"; RES="$B/tree/res/"; FRAMES=20000; MIN_TICKS=1000; fail=0
@@ -27,8 +28,8 @@ case "${1:-}" in
   --fault-plant) DETECT_FAULT=plant "$ORACLE/build-detect.sh" >/dev/null ;;
   --fault-swap)  DETECT_FAULT=swap  "$ORACLE/build-detect.sh" >/dev/null ;;
   --fault-steer) DETECT_FAULT=steer "$ORACLE/build-detect.sh" >/dev/null ;;
-  --fault-noresume) ;;
-  "") ;; *) echo "usage: $0 [--fault-plant|--fault-swap|--fault-steer|--fault-noresume]" >&2; exit 2 ;;
+  --fault-noresume|--fault-baseline) ;;
+  "") ;; *) echo "usage: $0 [--fault-plant|--fault-swap|--fault-steer|--fault-noresume|--fault-baseline]" >&2; exit 2 ;;
 esac
 unset TWINCITY_DETECT_RESUME; RESUME=TWINCITY_DETECT_RESUME=1; [ "${1:-}" = --fault-noresume ] && RESUME=TWINCITY_DETECT_NORESUME=1
 want=$(cat "$ORACLE/baselines/headless.txt")
@@ -67,6 +68,8 @@ if [ "${1:-}" = --fault-plant ]; then
   [ $missed = 0 ] && echo "plant: all three planted sites reported; the Map row overrun by rowcheck only, at its original address"
   fail=1
 fi
-diff -u "$ORACLE/baselines/detect-sites.txt" "$B/SITES" || { echo "FAIL detect sites differ from baselines/detect-sites.txt"; fail=1; }
+BASE="$ORACLE/baselines/detect-sites.txt"
+if [ "${1:-}" = --fault-baseline ]; then tail -n +2 "$BASE" > "$B/BASELINE.fault"; BASE="$B/BASELINE.fault"; fi
+diff -u "$BASE" "$B/SITES" || { echo "FAIL detect sites differ from baselines/detect-sites.txt"; fail=1; }
 [ $fail = 0 ] && echo "ok  detector: compiled-out rewrite is inert; detector doesn't steer; sites match baseline"
 exit $fail

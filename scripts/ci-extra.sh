@@ -23,8 +23,9 @@ fault oracle/run-detect.sh --fault-plant "^plant: all three planted sites report
   "^+sim/s_sim.c:93  asan  global-buffer-overflow" "^FAIL detect sites differ from baselines/detect-sites.txt"
 fault oracle/run-detect.sh --fault-steer "FAIL S1: the detector changed the outcome" "FAIL yokohama.cty: the detector changed the outcome"
 fault oracle/run-detect.sh --fault-noresume "FAIL S1 simulated 46 ticks (< 1000)" "FAIL finnigan.cty simulated 0 ticks (< 1000)"
+oracle/build-detect.sh > /dev/null  # clean; --fault-baseline only edits a copy of the baseline
+fault oracle/run-detect.sh --fault-baseline "^FAIL detect sites differ from baselines/detect-sites.txt"
 echo "== detector"
-oracle/build-detect.sh > /dev/null
 oracle/run-detect.sh
 
 # P0.5, session oracle (oracle/build-detect-xvfb.sh, run-detect-xvfb.sh): the same, on the Xvfb app
@@ -41,6 +42,7 @@ echo "== detector (session oracle, the fault runs' two sessions, clean: must pas
 oracle/run-detect-xvfb.sh > /tmp/detect-xvfb-subset.out 2>&1 || { cat /tmp/detect-xvfb-subset.out; echo "FAIL clean two-session run"; exit 1; }
 tail -1 /tmp/detect-xvfb-subset.out
 fault oracle/run-detect-xvfb.sh --fault-short "FAIL S1: CityTime advanced 18 (< 150)" "FAIL finnigan.cty: CityTime advanced 17 (< 150)" "FAIL S1: trace has 300 of 3000 ticks"
+fault oracle/run-detect-xvfb.sh --fault-baseline "^FAIL detect sites differ from baselines/detect-xvfb-sites.txt (sites only"
 unset SESSIONS
 echo "== detector (session oracle)"
 oracle/run-detect-xvfb.sh

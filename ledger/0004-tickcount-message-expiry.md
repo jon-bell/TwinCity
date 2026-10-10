@@ -20,16 +20,22 @@
   (`oracle/build-detect-xvfb.sh`, P0.5), 2026-10-10. Recorded in
   `oracle/baselines/detect-xvfb-sites.txt`.
 - **sessions:** 14 of the 32 xvfb detect sessions (3000 ticks each). The list is in the
-  baseline. The headless detect runs (`run-detect.sh`: the same 32 sessions, 1250 ticks) don't
-  reach `:316`, but headless does run `doMessage`. `DoUpdateHeads` → `updateDate`
-  (`w_update.c:176`) is reached from `DoBudgetNow` (`w_budget.c:198`, `:209`; yearly via
-  `CollectTax`, `s_sim.c:660`) and `InitWillStuff` (`s_init.c:130`), as well as from the
-  session oracle's `sim_update_editors` (`sim.c:284`). The adversary review of #18 used gdb on the
-  headless build. On `haight.cty` at 20000 frames: 28 `doMessage` calls and 25 `TickCount`
-  calls, all at `:308` (the `MessagePort` branch). S1 and S2: 3 `doMessage` calls each. A port
-  of `doMessage`/`TickCount` therefore runs on headless-gated paths too. (The
-  `build-headless.sh:4` comment, "never runs … doMessage", is wrong. It isn't corrected here,
-  because that file is an input to the oracle identity.)
+  baseline. Headless reaches the line but never overflows there.
+  - **How headless gets there:** `DoUpdateHeads` → `updateDate` (`w_update.c:176`) is called
+    from `DoBudgetNow` (`w_budget.c:198`, `:209`; yearly via `CollectTax`, `s_sim.c:660`) and
+    `InitWillStuff` (`s_init.c:130`), as well as from the session oracle's `sim_update_editors`
+    (`sim.c:284`).
+  - **Measured by the adversary review of #18:** gdb on `build/detect/twincity-detect-off` with
+    `TWINCITY_DETECT_RESUME=1` at 20000 frames, which is `run-detect.sh`'s configuration. `:316`
+    calls `TickCount` in 20 of the 32 sessions, for example S1 ×15, ndulls ×15, freds ×12.
+  - **Why it never overflows there:** with `TWINCITY_VCLOCK_STEP_US` unset, the headless virtual
+    clock is frozen (`wrap_clock.c:2`), so `TickCount()` is the constant 10519200. The
+    difference is 0, nothing overflows, and the expiry test is always false.
+  - **So the two oracles already disagree here:** on headless a positive `MesNum` never expires
+    and `SetMessageField` repeats it on every later `doMessage`. On the session oracle the outcome
+    follows the wrapped `TickCount` arithmetic below.
+  - **Wrong comment, not fixed here:** `build-headless.sh:4` ("never runs … doMessage") is
+    wrong. It isn't corrected in this PR because that file is an input to the oracle identity.
 - **perturbation:** the values below are `TickCount()` from a stand-alone reproduction of the
   `w_stubs.c:106` expression (gcc 13.3, `-std=gnu89 -fwrapv -O1`), on virtual-clock instants from
   the S1 run. They are not yet from the oracle builds:
