@@ -1,0 +1,2 @@
+sim/s_msg.c:316  ubsan  signed integer overflow: N - N cannot be represented in type 'int'  sessions=S1,S2,S3,S4,S7,badnews.cty,deadwood.cty,haight.cty,joffburg.cty,kamakura.cty,kobe.cty,kyoto.cty,ndulls.cty,southpac.cty
+sim/s_sim.c:442  ubsan  N is outside the range of representable values of type 'short int'  sessions=finnigan.cty,neatmap.cty
